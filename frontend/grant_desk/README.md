@@ -11,6 +11,10 @@ picture is backed by the multi-hop graph traversal, not re-computed in the UI.
 | 3 · Grant Memo (7 sections + picture + download) | `build_grant_memo` |
 | 4 · Ask the advisor (free text) + "Agent tool calls" trace | any tool |
 
+**Data source badge** (sidebar + under the title): 🟢 `BigQuery <project>.a4i_econ · real`,
+🟢 `… (MCP Toolbox)` for Toolbox lookups, 🟠 `MOCK corridor` for the test corridor. It is read from the
+`data_source` field that every tool response carries, so it shows what the agent actually used.
+
 **Why not ship `adk web`?** Our user is an internal grant officer deciding a funding queue, not a
 developer reading an event log. The Dev UI stays available as the debugging view and demo fallback.
 

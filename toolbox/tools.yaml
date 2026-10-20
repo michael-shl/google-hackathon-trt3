@@ -18,7 +18,7 @@ parameters:
     type: string
     description: Part of the business name, e.g. "roasters".
 statement: |
-  SELECT business_id, name, address, naics4
+  SELECT business_id, name, address, naics4, 'BigQuery a4i_econ · real (MCP Toolbox)' AS data_source
   FROM a4i_econ.businesses
   WHERE LOWER(name) LIKE CONCAT('%', LOWER(@name_query), '%')
   LIMIT 10
@@ -33,7 +33,7 @@ parameters:
     type: string
     description: The business_id from find_business or list_applicants.
 statement: |
-  SELECT bank_name, gross_approval, approval_date, loan_status, charged_off
+  SELECT bank_name, gross_approval, approval_date, loan_status, charged_off, 'BigQuery a4i_econ · real (MCP Toolbox)' AS data_source
   FROM a4i_econ.borrowed_from
   WHERE business_id = @business_id
 ---
@@ -44,7 +44,7 @@ source: bq
 description: Share of corridor businesses by 4-digit NAICS industry. Use as the baseline for the equity audit.
 statement: |
   SELECT naics4, COUNT(*) AS businesses,
-         ROUND(COUNT(*) / SUM(COUNT(*)) OVER (), 4) AS share
+         ROUND(COUNT(*) / SUM(COUNT(*)) OVER (), 4) AS share, 'BigQuery a4i_econ · real (MCP Toolbox)' AS data_source
   FROM a4i_econ.businesses
   GROUP BY naics4
   ORDER BY businesses DESC
@@ -60,7 +60,8 @@ parameters:
     type: string
     description: The business_id from find_business or list_applicants.
 statement: |
-  SELECT tract, acs_tracts, match_method, total_pop, median_income, poverty_rate, no_vehicle_rate, assistance_rate
+  SELECT tract, acs_tracts, match_method, total_pop, median_income, poverty_rate, no_vehicle_rate, assistance_rate,
+         'BigQuery a4i_econ · real (MCP Toolbox)' AS data_source
   FROM a4i_econ.business_need
   WHERE business_id = @business_id
 ---
@@ -71,7 +72,7 @@ type: bigquery-sql
 source: bq
 description: The grant application queue (simulated applications from real corridor businesses) with requested amounts.
 statement: |
-  SELECT a.business_id, b.name, b.address, b.naics4, a.requested_amount, a.stated_need
+  SELECT a.business_id, b.name, b.address, b.naics4, a.requested_amount, a.stated_need, 'BigQuery a4i_econ · real (MCP Toolbox)' AS data_source
   FROM a4i_econ.applicants a
   JOIN a4i_econ.businesses b USING (business_id)
   ORDER BY a.requested_amount DESC

@@ -7,12 +7,12 @@ Run locally (agent reachable via `gcloud run services proxy grant-advisor --port
 import streamlit as st
 
 from agent_client import AgentClient
-from desk_views import cascade_dot, path_rows, ranking_rows
+from desk_views import cascade_dot, data_source_badge, find_data_source, path_rows, ranking_rows
 
 st.set_page_config(page_title="Grant Desk · Central Market", page_icon="🏛️", layout="wide")
 ss = st.session_state
 for key, default in (("trace", []), ("chat", []), ("ranking", None), ("rank_text", ""),
-                     ("cascade", None), ("cascade_text", ""), ("memo", None)):
+                     ("cascade", None), ("cascade_text", ""), ("memo", None), ("data_source", None)):
     ss.setdefault(key, default)
 
 
@@ -36,6 +36,9 @@ def ask(message: str, spinner: str, brief: bool = True):
         st.error(f"Agent call failed: {exc}")
         return None
     ss.trace.append({"message": message, "calls": turn.tool_calls})
+    source = find_data_source(turn.tool_responses)
+    if source:
+        ss.data_source = source
     for tool, key in (("rank_applicants", "ranking"), ("get_cascade", "cascade"), ("build_grant_memo", "memo")):
         resp = turn.latest(tool)
         if resp and resp.get("status") == "success":
@@ -47,9 +50,11 @@ def ask(message: str, spinner: str, brief: bool = True):
 st.title("🏛️ Grant Desk: Central Market micro-grants")
 st.caption("Relief fund for the Central Market corridor, San Francisco. Every table and picture below is drawn "
            "from the agent's own tool calls over the corridor's supply-network property graph.")
+header_source = st.empty()
 
 with st.sidebar:
     st.header("Fund")
+    sidebar_source = st.empty()
     budget = st.number_input("Budget (USD)", min_value=1000, max_value=1_000_000, value=50_000, step=5_000)
     assumption = st.selectbox("What a full grant changes", ["base", "pessimistic", "optimistic"],
                               format_func={"base": "Base: closure risk −10 pts",
@@ -165,3 +170,9 @@ with st.expander("Agent tool calls (the traversal behind this screen)"):
     for item in reversed(ss.trace):
         st.markdown(f"**{item['message']}**")
         st.code("\n".join(f"{c['name']}({c['args']})" for c in item["calls"]) or "(no tool calls)", language="text")
+
+# ------------------------------------------------------------------ data source badge
+# Filled last so it reflects the newest tool response from any button on this run.
+kind, badge_text = data_source_badge(ss.data_source)
+getattr(sidebar_source, kind)(badge_text)
+header_source.caption(badge_text)

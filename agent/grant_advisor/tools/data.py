@@ -28,6 +28,17 @@ def use_mock() -> bool:
     return os.getenv("USE_MOCK_DATA", "false").strip().lower() in ("1", "true", "yes")
 
 
+MOCK_LABEL_PREFIX = "MOCK corridor"
+
+
+def data_source_label() -> str:
+    """Human-readable source shown on every tool response, the memo and the Grant Desk."""
+    if use_mock():
+        return f"{MOCK_LABEL_PREFIX} · illustrative test data, not real businesses"
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    return f"BigQuery {project + '.' if project else ''}{_dataset()} · real"
+
+
 def _dataset() -> str:
     name = os.getenv("BQ_DATASET", "a4i_econ")
     if not _IDENT.match(name):

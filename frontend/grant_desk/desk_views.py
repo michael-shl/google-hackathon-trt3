@@ -1,5 +1,7 @@
 """Pure helpers that turn the agent's tool responses into tables and Graphviz pictures."""
 
+import re
+
 HOP_COLORS = {1: "#ffcc80", 2: "#fff59d", 3: "#e6ee9c"}
 MAX_PATHS_IN_PICTURE = 10
 
@@ -56,3 +58,35 @@ def path_rows(cascade: dict) -> list[dict]:
              "Path": " → ".join(r.get("path_names") or []),
              "Strength": r.get("path_strength"), "Weakest link": r.get("weakest_link")}
             for r in cascade.get("exposed") or []]
+
+
+_SOURCE_RE = re.compile(r'"data_source"\s*:\s*"([^"]+)"')
+
+
+def find_data_source(obj) -> str | None:
+    """Finds a data_source label in tool responses (dicts, lists, or MCP text payloads)."""
+    if isinstance(obj, dict):
+        if isinstance(obj.get("data_source"), str):
+            return obj["data_source"]
+        values = obj.values()
+    elif isinstance(obj, (list, tuple)):
+        values = obj
+    elif isinstance(obj, str):
+        match = _SOURCE_RE.search(obj)
+        return match.group(1) if match else None
+    else:
+        return None
+    for value in reversed(list(values)):
+        found = find_data_source(value)
+        if found:
+            return found
+    return None
+
+
+def data_source_badge(label: str | None) -> tuple[str, str]:
+    """(streamlit element, text): green for real BigQuery, orange for the mock corridor."""
+    if not label:
+        return "info", "⚪ Data source: shown after the first query"
+    if label.startswith("MOCK"):
+        return "warning", f"🟠 Data: {label}"
+    return "success", f"🟢 Data: {label}"

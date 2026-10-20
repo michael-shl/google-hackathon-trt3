@@ -72,3 +72,17 @@ def test_desk_requests_ask_for_brief_replies():
     client.ask("s1", "Free question", brief=False)
     assert sent[0]["new_message"]["parts"][0]["text"] == "Rank them" + DESK_HINT
     assert sent[1]["new_message"]["parts"][0]["text"] == "Free question"
+
+
+def test_data_source_found_in_tool_and_mcp_responses_and_badged():
+    from desk_views import data_source_badge, find_data_source
+
+    custom = {"rank_applicants": [{"status": "success", "data_source": "BigQuery p.a4i_econ · real"}]}
+    mcp_text = {"get_neighborhood": [{"content": [{"type": "text",
+                "text": '[{"tract": "06075012502", "data_source": "BigQuery a4i_econ · real (MCP Toolbox)"}]'}]}]}
+    assert find_data_source(custom) == "BigQuery p.a4i_econ · real"
+    assert find_data_source(mcp_text) == "BigQuery a4i_econ · real (MCP Toolbox)"
+    assert find_data_source({"x": [{"status": "error"}]}) is None
+    assert data_source_badge("BigQuery p.a4i_econ · real")[0] == "success"
+    assert data_source_badge("MOCK corridor · illustrative")[0] == "warning"
+    assert data_source_badge(None)[0] == "info"
