@@ -10,6 +10,15 @@ the **MCP Toolbox** serves read-only lookups. Everything runs as private Cloud R
 
 Diagram sources: [`diagrams/`](diagrams/) (Mermaid). Rendered PNG/SVG for the deck: [`images/`](images/).
 
+## 0. Slide version (for the pitch deck)
+
+![Architecture: slide version](images/00-presentation.png)
+
+Blue = Cloud Run services · yellow = Gemini · green = our custom tools · purple = BigQuery (property
+graph + corridor data) · red = the output an officer takes to Friday's meeting.
+Source: [`diagrams/00-presentation.mmd`](diagrams/00-presentation.mmd), rendered with
+`npx -y @mermaid-js/mermaid-cli@11 -c diagrams/mermaid-slide.config.json -i diagrams/00-presentation.mmd -o images/00-presentation.png -b white -s 3`.
+
 ## 1. System architecture
 
 ![System architecture](images/01-system.png)
