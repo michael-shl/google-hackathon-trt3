@@ -1,0 +1,42 @@
+flowchart TB
+    officer["👤 Grant officer · browser"]
+    proxy["gcloud run services proxy<br/>IAM-authenticated"]
+
+    subgraph gcp["Google Cloud project qwiklabs-gcp-04-7254cc802c4d · us-central1"]
+        direction TB
+        subgraph run["Cloud Run · private services · min 1 instance"]
+            direction LR
+            desk["<b>Grant Desk</b><br/>Streamlit front end<br/>SA grant-desk"]
+            agent["<b>grant_advisor</b><br/>ADK 2.12 agent<br/>SA grant-advisor"]
+            toolbox["<b>MCP Toolbox 1.14</b><br/>Google-managed MCP server<br/>SA toolbox-identity"]
+        end
+        gemini["<b>Vertex AI</b><br/>Gemini 2.5 Flash"]
+        subgraph custom["Custom tools · Python, in the agent process"]
+            direction LR
+            cascade["get_cascade"]
+            rank["rank_applicants"]
+            audit["equity_audit"]
+            memo["build_grant_memo"]
+        end
+        secret["Secret Manager<br/>tools.yaml"]
+        subgraph bq["BigQuery · dataset a4i_econ"]
+            direction LR
+            pg[("<b>Property graph</b><br/>LocalEconomy")]
+            base[("Base tables<br/>businesses · supplies · draws_footfall_from<br/>employer_blocks · borrowed_from · tract_demographics")]
+            derived[("Derived tables<br/>business_need · applicants")]
+        end
+        resv["BigQuery reservation a4i-graph<br/>Enterprise edition · 0 to 50 slots"]
+    end
+
+    officer --> proxy --> desk
+    desk -->|"REST /run + ID token"| agent
+    agent <-->|"reasoning + tool calls"| gemini
+    agent -->|"function tools"| custom
+    agent -->|"MCP · streamable HTTP"| toolbox
+    custom -->|"multi-hop GQL · MATCH -[:Supplies]->{1,2}"| pg
+    custom -->|"SQL"| derived
+    toolbox -->|"read-only parameterized SQL"| derived
+    toolbox --> base
+    secret -.-> toolbox
+    pg -.-|"built over"| base
+    resv -.->|"required for graph queries"| pg
