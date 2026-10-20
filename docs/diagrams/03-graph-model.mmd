@@ -1,0 +1,12 @@
+flowchart LR
+    employer(["<b>Employer</b><br/>census block<br/>block_id · tract · jobs"])
+    supplier["<b>Business</b><br/>business_id · name · naics4<br/>address · zip · latitude · longitude"]
+    buyer["<b>Business</b>"]
+    downstream["<b>Business</b>"]
+
+    supplier -->|"<b>Supplies</b><br/>intensity · metres"| buyer
+    buyer -->|"<b>Supplies</b>"| downstream
+    employer -->|"<b>DrawsFootfall</b><br/>worker_share · metres"| buyer
+
+    style employer fill:#c2185b,stroke:#880e4f,color:#fff
+    style supplier fill:#1565c0,stroke:#0d47a1,color:#fff

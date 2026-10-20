@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    actor Officer
+    participant Desk as Grant Desk<br/>(Streamlit, Cloud Run)
+    participant Agent as grant_advisor<br/>(ADK, Cloud Run)
+    participant Gemini as Gemini 2.5 Flash<br/>(Vertex AI)
+    participant Tool as rank_applicants<br/>(custom tool)
+    participant BQ as BigQuery<br/>a4i_econ
+
+    Officer->>Desk: Budget $50,000 · "Rank applicants"
+    Desk->>Agent: POST /run (ID token)<br/>request + "[Grant Desk request]" hint
+    Agent->>Gemini: instruction + message + tool declarations
+    Gemini-->>Agent: functionCall rank_applicants(budget=50000)
+    Agent->>Tool: rank_applicants(50000, "base")
+    par one batched graph query
+        Tool->>BQ: GQL MATCH (seed IN UNNEST(@ids))-[:Supplies]->{1,2}(exposed)
+    and concurrent lookups
+        Tool->>BQ: applicants · out-degrees · business_need
+    end
+    BQ-->>Tool: paths (hops, path strength, path names) and lookups
+    Note over Tool: exposure = sum of strongest path per exposed business<br/>hub rule · per-$10k score · budget allocation<br/>sensitivity: weakest-link · no hub discount · 1-hop
+    Tool-->>Agent: ranking · recommendation · runner-up · sensitivity
+    Agent->>Gemini: functionResponse
+    Gemini-->>Agent: 3-sentence rationale (states assumption + modeled edges)
+    Agent-->>Desk: events (functionCall, functionResponse, text)
+    Desk-->>Officer: funding queue table · sensitivity warning · rationale
