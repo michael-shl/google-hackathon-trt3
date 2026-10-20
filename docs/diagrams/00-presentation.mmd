@@ -1,0 +1,37 @@
+flowchart LR
+    officer(["👤 <b>Grant officer</b><br/>$50k fund · 11 applicants"])
+    desk["<b>Grant Desk</b><br/>Streamlit · Cloud Run"]
+    memo(["📄 <b>Grant Memo</b><br/>who · how much · cascade<br/>why not the runner-up<br/>assumptions · equity audit"])
+    agent["<b>ADK Agent</b><br/>grant_advisor<br/>Cloud Run"]
+    gemini["<b>Gemini 2.5 Flash</b><br/>Vertex AI"]
+    tools["<b>Custom tools</b><br/>cascade · rank<br/>equity audit · memo"]
+    mcp["<b>MCP Toolbox</b><br/>managed MCP server<br/>Cloud Run"]
+
+    subgraph bq["BigQuery"]
+        direction TB
+        pgraph[("<b>Property graph</b><br/>MATCH (seed)<br/>-[:Supplies]->{1,2}<br/>(exposed)")]
+        data[("<b>Corridor data</b><br/>232 real businesses<br/>SBA loans · ACS need<br/>modeled supply links")]
+    end
+
+    officer --> desk
+    desk -->|"REST"| agent
+    desk -.-> memo
+    agent <-->|"reason"| gemini
+    agent -->|"tools"| tools
+    agent -->|"MCP"| mcp
+    tools -->|"multi-hop GQL"| pgraph
+    mcp -->|"read-only SQL"| data
+
+    classDef user fill:#ffffff,stroke:#5f6368,stroke-width:2px
+    classDef run fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px
+    classDef ai fill:#fef7e0,stroke:#f9ab00,stroke-width:2px
+    classDef custom fill:#e6f4ea,stroke:#188038,stroke-width:2px
+    classDef store fill:#f3e8fd,stroke:#9334e6,stroke-width:2px
+    classDef out fill:#fce8e6,stroke:#d93025,stroke-width:2px
+    class officer user
+    class desk,agent,mcp run
+    class gemini ai
+    class tools custom
+    class pgraph,data store
+    class memo out
+    style bq fill:#faf5ff,stroke:#9334e6,stroke-width:1px,stroke-dasharray: 4 4
