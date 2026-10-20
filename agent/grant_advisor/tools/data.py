@@ -213,14 +213,34 @@ def _safe_neighborhoods() -> dict:
         return {}
 
 
+_SECTOR_GROUPS = {"31": "31-33", "32": "31-33", "33": "31-33", "44": "44-45", "45": "44-45",
+                  "48": "48-49", "49": "48-49"}
+SECTOR_NAMES = {
+    "11": "Agriculture", "21": "Mining", "22": "Utilities", "23": "Construction",
+    "31-33": "Manufacturing", "42": "Wholesale trade", "44-45": "Retail trade",
+    "48-49": "Transportation & warehousing", "51": "Information", "52": "Finance & insurance",
+    "53": "Real estate", "54": "Professional services", "55": "Management of companies",
+    "56": "Administrative & support", "61": "Education", "62": "Health care & social assistance",
+    "71": "Arts & recreation", "72": "Accommodation & food services",
+    "81": "Other services (incl. personal services)", "92": "Public administration",
+}
+
+
+def sector(naics4) -> str:
+    """2-digit NAICS sector (with the official 31-33 / 44-45 / 48-49 groupings)."""
+    two = str(naics4 or "")[:2]
+    return _SECTOR_GROUPS.get(two, two or "unknown")
+
+
 @lru_cache(maxsize=1)
 def corridor_profile() -> dict:
-    """Corridor baseline for the equity audit: industry shares and business-weighted need."""
+    """Corridor baseline for the equity audit: sector shares and business-weighted need."""
     businesses = get_businesses_all()
     total = len(businesses) or 1
     shares: dict[str, float] = {}
     for b in businesses.values():
-        shares[b["naics4"]] = shares.get(b["naics4"], 0) + 1 / total
+        key = sector(b["naics4"])
+        shares[key] = shares.get(key, 0) + 1 / total
     hoods = _safe_neighborhoods()
     with_hood = [hoods[b] for b in businesses if b in hoods]
 
@@ -230,7 +250,7 @@ def corridor_profile() -> dict:
 
     return {
         "business_count": len(businesses),
-        "industry_share": shares,
+        "sector_share": shares,
         "poverty_avg": avg("poverty_rate"),
         "no_vehicle_avg": avg("no_vehicle_rate"),
     }
