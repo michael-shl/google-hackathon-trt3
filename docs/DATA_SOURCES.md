@@ -68,12 +68,17 @@ To rebuild from these, import [`notebooks/c3_01_load_explore.ipynb`](../notebook
 
 ---
 
-## 4. Tables built on top (created 2026-10-20; re-run in order after every `load.sh`)
+## 4. Tables built on top (created 2026-10-20; re-run `sql/01`→`03` in order after EVERY reload)
+
+> ⚠️ **Reloading changes business IDs.** The notebook load uses City registry IDs (`1051477-01-161`),
+> `load.sh` uses short numeric IDs (`24`). After any reload, re-run `sql/01`, `sql/02`, `sql/03`
+> (applicants are matched by name; the script fails loudly if a name is missing). The agent picks up
+> the new data within 10 minutes (`DATA_CACHE_TTL`) without a redeploy.
 
 | Object | File | Result | Why |
 |---|---|---|---|
 | `a4i_econ.LocalEconomy` (property graph) | [`sql/01_property_graph.sql`](../sql/01_property_graph.sql) | Business + Employer nodes; Supplies + DrawsFootfall edges; 0 duplicate keys | Required multi-hop GQL traversal |
-| `a4i_econ.business_tract`, `a4i_econ.business_need` | [`sql/02_business_need.sql`](../sql/02_business_need.sql) | 230/230 businesses with need data (2 exact tract matches, 228 via split-tract method) | `businesses` has no tract; `tract_demographics` covers only 2 of 230 businesses |
+| `a4i_econ.business_tract`, `a4i_econ.business_need` | [`sql/02_business_need.sql`](../sql/02_business_need.sql) | 232/232 businesses with need data (4 exact tract matches, the rest via split-tract method) | `businesses` has no tract; `tract_demographics` covers only a few corridor businesses |
 | `a4i_econ.applicants` | [`sql/03_applicants.sql`](../sql/03_applicants.sql) | 11 simulated applications, $134,500 requested | Queue for the Main Street track |
 
 Run them with the BigQuery console, or `bq query --use_legacy_sql=false < sql/0N_….sql`.

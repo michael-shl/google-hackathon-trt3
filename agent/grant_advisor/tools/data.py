@@ -1,15 +1,17 @@
 """Data access for the agent's tools: mock corridor or BigQuery (USE_MOCK_DATA).
 
 Every tool goes through these functions, so switching to real data is one env var.
-Results are cached per process; the corridor does not change during a session.
+Results are cached per process and expire after DATA_CACHE_TTL seconds (default 600), so a data
+reload (load.sh / notebook / sql/*.sql) is picked up without redeploying the agent.
 """
 
 import json
 import os
 import re
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
-from functools import lru_cache
+from functools import lru_cache, wraps
 
 from . import mock_data
 
@@ -49,18 +51,41 @@ def _run(sql: str, **params) -> list[dict]:
         raise DataUnavailable(f"BigQuery query failed: {exc}") from exc
 
 
+_cache_started = time.monotonic()
+
+
 def clear_cache() -> None:
+    global _cache_started
     for fn in (get_businesses_all, applicants, out_degrees, neighborhoods_all,
                corridor_profile, loans_all):
         fn.cache_clear()
     with _cascade_lock:
         _cascade_cache.clear()
+    _cache_started = time.monotonic()
+
+
+def _expire_if_stale() -> None:
+    if time.monotonic() - _cache_started > float(os.getenv("DATA_CACHE_TTL", "600")):
+        clear_cache()
+
+
+def _ttl_cached(fn):
+    """lru_cache for the zero-argument loaders, cleared together when the TTL passes."""
+    cached = lru_cache(maxsize=1)(fn)
+
+    @wraps(fn)
+    def wrapper():
+        _expire_if_stale()
+        return cached()
+
+    wrapper.cache_clear = cached.cache_clear
+    return wrapper
 
 
 # ---------------------------------------------------------------- businesses
 
 
-@lru_cache(maxsize=1)
+@_ttl_cached
 def get_businesses_all() -> dict:
     if use_mock():
         return {k: dict(v, business_id=k) for k, v in mock_data.BUSINESSES.items()}
@@ -151,6 +176,7 @@ def prefetch_cascades(seed_ids, max_hops: int = 2) -> None:
     """Fetches every missing seed's paths in ONE multi-hop GQL query (not one query per seed)."""
     if not 1 <= max_hops <= MAX_HOPS_LIMIT:
         raise ValueError(f"max_hops must be between 1 and {MAX_HOPS_LIMIT}")
+    _expire_if_stale()
     with _cascade_lock:
         missing = sorted({s for s in seed_ids if _cascade_cache.get(s, (0, ()))[0] < max_hops})
     if not missing:
@@ -185,7 +211,7 @@ def warm(seed_ids, max_hops: int = 2) -> None:
             future.result()
 
 
-@lru_cache(maxsize=1)
+@_ttl_cached
 def out_degrees() -> dict:
     """Distinct direct buyers per supplier (used for the hub rule, not for ranking)."""
     if use_mock():
@@ -201,7 +227,7 @@ def out_degrees() -> dict:
 # ---------------------------------------------------------------- applicants & neighborhoods
 
 
-@lru_cache(maxsize=1)
+@_ttl_cached
 def applicants() -> tuple:
     if use_mock():
         businesses = get_businesses_all()
@@ -212,7 +238,7 @@ def applicants() -> tuple:
         f"FROM {_dataset()}.applicants a JOIN {_dataset()}.businesses b USING (business_id)"))
 
 
-@lru_cache(maxsize=1)
+@_ttl_cached
 def loans_all() -> tuple:
     """REAL SBA 7(a) loan records (a4i_econ.borrowed_from); often sparse or empty."""
     if use_mock():
@@ -222,7 +248,7 @@ def loans_all() -> tuple:
         f"loan_status, charged_off FROM {_dataset()}.borrowed_from"))
 
 
-@lru_cache(maxsize=1)
+@_ttl_cached
 def neighborhoods_all() -> dict:
     """business_id -> neighborhood need (ACS). Needs a4i_econ.business_need (sql/02_business_need.sql)."""
     if use_mock():
@@ -264,7 +290,7 @@ def sector(naics4) -> str:
     return _SECTOR_GROUPS.get(two, two or "unknown")
 
 
-@lru_cache(maxsize=1)
+@_ttl_cached
 def corridor_profile() -> dict:
     """Corridor baseline for the equity audit: sector shares and business-weighted need."""
     businesses = get_businesses_all()
