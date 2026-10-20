@@ -68,13 +68,21 @@ To rebuild from these, import [`notebooks/c3_01_load_explore.ipynb`](../notebook
 
 ---
 
-## 4. Tables the data team builds on top (not created yet)
+## 4. Tables built on top (created 2026-10-20; re-run in order after every `load.sh`)
 
-| Object | File | Owner | Why |
+| Object | File | Result | Why |
 |---|---|---|---|
-| `a4i_econ.LocalEconomy` (property graph) | `sql/01_property_graph.sql` | P2 | Required multi-hop GQL traversal |
-| `a4i_econ.business_tract` | `sql/02_business_tract.sql` | P2 | `businesses` has no tract column; needed by `get_neighborhood` and the equity audit |
-| `a4i_econ.applicants` | `sql/03_applicants.sql` | P2 (list from P3 + P6) | The 11 simulated applications for the Main Street track |
+| `a4i_econ.LocalEconomy` (property graph) | [`sql/01_property_graph.sql`](../sql/01_property_graph.sql) | Business + Employer nodes; Supplies + DrawsFootfall edges; 0 duplicate keys | Required multi-hop GQL traversal |
+| `a4i_econ.business_tract`, `a4i_econ.business_need` | [`sql/02_business_need.sql`](../sql/02_business_need.sql) | 230/230 businesses with need data (2 exact tract matches, 228 via split-tract method) | `businesses` has no tract; `tract_demographics` covers only 2 of 230 businesses |
+| `a4i_econ.applicants` | [`sql/03_applicants.sql`](../sql/03_applicants.sql) | 11 simulated applications, $134,500 requested | Queue for the Main Street track |
+
+Run them with the BigQuery console, or `bq query --use_legacy_sql=false < sql/0N_….sql`.
+
+**Census-vintage gotcha (say it in the deck as a limitation):** the newest ACS (`censustract_2020_5yr`)
+uses **2020** tract IDs, but BigQuery's public tract *shapes* are **2010** vintage, and San Francisco
+split several corridor tracts in 2020 (e.g. 0176.01 → 0176.02/.03/.04). `business_need` therefore
+combines the 2020 tracts that replaced each 2010 tract (same 4-digit base, ratio of summed ACS
+counts). For split tracts, the need signal is the average over the old tract's area.
 
 DDL and queries for each are in [TEAM_PLAN.md](TEAM_PLAN.md) §7 (P2 and P3).
 
