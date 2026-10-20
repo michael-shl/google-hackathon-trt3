@@ -131,9 +131,9 @@ Open the Google Cloud console as your facilitator instructs → click **`>_`** (
 
 ```bash
 gh auth login                 # HTTPS, log in with browser (or use a personal access token)
-git clone https://github.com/michael-shl/google-hackathon-trt3.git
+git clone https://github.com/michael-shl/google-hackathon-trt3.git   # HTTPS; SSH only works if your key is added to GitHub
 cd google-hackathon-trt3
-git checkout -b <your-lane>   # data | agent | frontend | story
+git switch <your-lane>        # data | agent | frontend | story (branches already exist; don't use `git checkout agent`, it clashes with the agent/ folder)
 cloudshell workspace .
 gcloud config get-value project   # must print qwiklabs-gcp-04-7254cc802c4d
 # if not: gcloud config set project qwiklabs-gcp-04-7254cc802c4d
