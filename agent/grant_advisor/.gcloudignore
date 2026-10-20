@@ -1,0 +1,7 @@
+# Read by `adk deploy` (only ignore files inside the agent folder are honored).
+# Keep the local .env out of deployments: ADK loads it with override=True, which would
+# replace the Cloud Run env vars (USE_MOCK_DATA, TOOLBOX_URL, ...).
+.env
+__pycache__
+*.pyc
+.venv

@@ -1,4 +1,50 @@
-# Your agent goes here
+# `grant_advisor`: Team TRT3's ADK agent
+
+A grant advisor for a city economic-development officer: corridor + budget + applicant queue in,
+a defended **Grant Memo** out, with the multi-hop cascade it protects shown.
+
+```
+agent/grant_advisor/
+  agent.py        root_agent (Gemini + tools)            owner P1
+  prompts.py      system instruction                     owner P1 (+P6)
+  tools/
+    data.py       data access: mock corridor OR BigQuery (multi-hop GQL lives here)   P2/P3/P4
+    cascade.py    get_cascade        custom tool: downstream exposure                 P4
+    scoring.py    rank_applicants    custom tool: judgment + allocation + sensitivity P3
+    audit.py      equity_audit       custom tool: industry + tract comparison         P3
+    memo.py       build_grant_memo   custom tool: 7-section memo + Graphviz DOT       P4
+    lookup.py     local stand-ins for the MCP Toolbox tools (used only if TOOLBOX_URL is empty)
+    mock_data.py  14-business mock corridor (illustrative names)
+```
+
+## Run locally (mock data, no cloud needed for the tools)
+
+```bash
+cd agent
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r grant_advisor/requirements.txt pytest
+cp grant_advisor/.env.example grant_advisor/.env     # USE_MOCK_DATA=true by default
+gcloud auth application-default login                 # Gemini via Vertex AI (lab account)
+adk web                                               # http://localhost:8000 → grant_advisor
+```
+Try: *"I have $50,000. Who should we fund?"* → *"Why Bayside Roasters and not Golden Produce Wholesale?"* → *"Write it up."*
+
+Tests (offline, mock corridor): `pytest ../tests -q` from `agent/`, or `pytest tests -q` from the repo root.
+
+## Switch to real data
+
+When P2 has loaded `a4i_econ` and created the `LocalEconomy` graph (`business_tract` and
+`applicants` too), set `USE_MOCK_DATA=false` in `.env`. Set `TOOLBOX_URL` to use MCP Toolbox.
+
+## Deploy
+
+`terraform output -raw adk_deploy_command` (see [terraform/README.md](../terraform/README.md)).
+The local `.env` is excluded from deploys by `grant_advisor/.gcloudignore`. ADK would otherwise
+load it with override=True and replace the Cloud Run settings.
+
+---
+
+# Your agent goes here (original challenge brief)
 
 This folder is empty on purpose.
 

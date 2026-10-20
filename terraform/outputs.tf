@@ -20,6 +20,7 @@ output "adk_deploy_command" {
       --env GOOGLE_CLOUD_PROJECT=${var.project_id} \
       --env GOOGLE_CLOUD_LOCATION=${var.region} \
       --env BQ_DATASET=${var.dataset_id} \
+      --env USE_MOCK_DATA=false \
       --env TOOLBOX_URL=${google_cloud_run_v2_service.toolbox.uri} \
       ./grant_advisor \
       -- --service-account=${google_service_account.agent.email} --min-instances=1
