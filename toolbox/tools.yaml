@@ -1,0 +1,87 @@
+# MCP Toolbox configuration (owner: P5). Read-only, parameterized BigQuery tools.
+# ${PROJECT_ID} is substituted from the environment at startup (Cloud Run sets it via Terraform;
+# locally: export PROJECT_ID=qwiklabs-gcp-04-7254cc802c4d).
+# After editing: `terraform apply` in ../terraform uploads a new secret version and redeploys.
+kind: source
+name: bq
+type: bigquery
+project: ${PROJECT_ID}
+location: US
+---
+kind: tool
+name: find_business
+type: bigquery-sql
+source: bq
+description: Find corridor businesses by (partial) name. Returns business_id, name, address and 4-digit NAICS industry.
+parameters:
+  - name: name_query
+    type: string
+    description: Part of the business name, e.g. "roasters".
+statement: |
+  SELECT business_id, name, address, naics4
+  FROM a4i_econ.businesses
+  WHERE LOWER(name) LIKE CONCAT('%', LOWER(@name_query), '%')
+  LIMIT 10
+---
+kind: tool
+name: get_loan_history
+type: bigquery-sql
+source: bq
+description: REAL SBA 7(a) loan records for a business, including whether a loan was charged off (the business failed). Empty means no SBA record.
+parameters:
+  - name: business_id
+    type: string
+    description: The business_id from find_business or list_applicants.
+statement: |
+  SELECT bank_name, gross_approval, approval_date, loan_status, charged_off
+  FROM a4i_econ.borrowed_from
+  WHERE business_id = @business_id
+---
+kind: tool
+name: corridor_industry_mix
+type: bigquery-sql
+source: bq
+description: Share of corridor businesses by 4-digit NAICS industry. Use as the baseline for the equity audit.
+statement: |
+  SELECT naics4, COUNT(*) AS businesses,
+         ROUND(COUNT(*) / SUM(COUNT(*)) OVER (), 4) AS share
+  FROM a4i_econ.businesses
+  GROUP BY naics4
+  ORDER BY businesses DESC
+---
+# Needs a4i_econ.business_tract (P2, sql/02_business_tract.sql).
+kind: tool
+name: get_neighborhood
+type: bigquery-sql
+source: bq
+description: Census tract demographics (population, median income, poverty, no-vehicle and public-assistance rates) where a business is located.
+parameters:
+  - name: business_id
+    type: string
+    description: The business_id from find_business or list_applicants.
+statement: |
+  SELECT bt.tract, d.total_pop, d.median_income, d.poverty_rate, d.no_vehicle_rate, d.assistance_rate
+  FROM a4i_econ.business_tract bt
+  JOIN a4i_econ.tract_demographics d ON d.geo_id = bt.tract
+  WHERE bt.business_id = @business_id
+---
+# Needs a4i_econ.applicants (P2, sql/03_applicants.sql).
+kind: tool
+name: list_applicants
+type: bigquery-sql
+source: bq
+description: The grant application queue (simulated applications from real corridor businesses) with requested amounts.
+statement: |
+  SELECT a.business_id, b.name, b.address, b.naics4, a.requested_amount, a.stated_need
+  FROM a4i_econ.applicants a
+  JOIN a4i_econ.businesses b USING (business_id)
+  ORDER BY a.requested_amount DESC
+---
+kind: toolset
+name: grant_toolset
+tools:
+  - find_business
+  - get_loan_history
+  - corridor_industry_mix
+  - get_neighborhood
+  - list_applicants

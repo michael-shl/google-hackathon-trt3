@@ -472,7 +472,9 @@ adk deploy cloud_run --project $PROJECT_ID --region us-central1 \
 # check flags with: adk deploy cloud_run --help
 ```
 
-**T+1:30–2:15 — Toolbox on Cloud Run** (docs: https://mcp-toolbox.dev/documentation/deploy-to/cloud-run/)
+**T+1:30–2:15 — Toolbox on Cloud Run.** **Preferred: `terraform apply` in [`terraform/`](../terraform/README.md)**. It enables the APIs,
+creates the service accounts + IAM, uploads `toolbox/tools.yaml` as a secret, deploys `toolbox` (min instances 1), and prints the
+exact `adk deploy` command. Manual equivalent (docs: https://mcp-toolbox.dev/documentation/deploy-to/cloud-run/):
 ```bash
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   iam.googleapis.com secretmanager.googleapis.com
