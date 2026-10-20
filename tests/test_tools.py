@@ -145,3 +145,19 @@ def test_cascades_for_many_seeds_use_one_batched_query(monkeypatch):
     assert len(data.cascade_paths("A", 2)) == 2
     assert data.cascade_paths("B", 2) == ()
     assert len(calls) == 1
+
+
+def test_data_cache_expires_after_ttl(monkeypatch):
+    from grant_advisor.tools import data
+
+    calls = []
+    monkeypatch.setattr(data, "use_mock", lambda: False)
+    monkeypatch.setattr(data, "_run", lambda sql, **p: calls.append(sql) or [
+        {"business_id": "X", "name": "X", "address": "a", "naics4": "7225"}])
+    monkeypatch.setenv("DATA_CACHE_TTL", "600")
+    data.get_businesses_all()
+    data.get_businesses_all()
+    assert len(calls) == 1
+    monkeypatch.setenv("DATA_CACHE_TTL", "0")
+    data.get_businesses_all()
+    assert len(calls) == 2
