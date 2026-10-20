@@ -112,6 +112,8 @@ Robustness of the recommendation:
 ## 6. Which evidence is modeled
 {EDGE_BASIS} Businesses, SBA loans and demographics are real.
 
+**Data source:** {data.data_source_label()}
+
 ## 7. Who the neighborhood is
 Census tract {hood.get('tract', 'n/a')}: poverty {_pct(hood.get('poverty_rate'))}, households without a vehicle
 {_pct(hood.get('no_vehicle_rate'))}, on public assistance {_pct(hood.get('assistance_rate'))}.

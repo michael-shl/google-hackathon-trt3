@@ -161,3 +161,23 @@ def test_data_cache_expires_after_ttl(monkeypatch):
     monkeypatch.setenv("DATA_CACHE_TTL", "0")
     data.get_businesses_all()
     assert len(calls) == 2
+
+
+def test_every_tool_response_carries_the_data_source(monkeypatch):
+    from grant_advisor.tools import CUSTOM_TOOLS, LOCAL_LOOKUP_TOOLS, data
+
+    by_name = {t.__name__: t for t in [*CUSTOM_TOOLS, *LOCAL_LOOKUP_TOOLS]}
+    responses = [
+        by_name["get_cascade"]("B01"), by_name["get_cascade"]("NOPE"),
+        by_name["rank_applicants"](), by_name["equity_audit"](["B01"]),
+        by_name["build_grant_memo"]("B01", 15000, "B04"),
+        by_name["find_business"]("roast"), by_name["list_applicants"](),
+        by_name["get_neighborhood"]("B01"), by_name["get_loan_history"]("B09"),
+    ]
+    for resp in responses:
+        assert resp["data_source"].startswith("MOCK corridor")
+    assert "**Data source:** MOCK corridor" in responses[4]["memo_markdown"]
+
+    monkeypatch.setenv("USE_MOCK_DATA", "false")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "proj")
+    assert data.data_source_label() == "BigQuery proj.a4i_econ · real"
