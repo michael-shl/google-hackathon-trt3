@@ -1,6 +1,8 @@
 # Team TRT3 — Challenge 3 Team Plan (6 people, 4.5 hours)
 
 > **Repo:** https://github.com/michael-shl/google-hackathon-trt3 · **Team lead:** Michael
+> **GCP project (shared, Qwiklabs):** `qwiklabs-gcp-04-7254cc802c4d`. Don't create a new project; work in
+> **Cloud Shell** opened from the lab console (local `gcloud` accounts have no access to it).
 > **Challenge brief:** [README.md](../README.md) · **Agent requirements:** [agent/README.md](../agent/README.md)
 >
 > **What we must hand in** (portal: https://portal.angelhack.com/a4i-console): GitHub repo link ·
@@ -133,7 +135,9 @@ git clone https://github.com/michael-shl/google-hackathon-trt3.git
 cd google-hackathon-trt3
 git checkout -b <your-lane>   # data | agent | frontend | story
 cloudshell workspace .
-gcloud config get-value project   # confirm it's the TEAM project
+gcloud config get-value project   # must print qwiklabs-gcp-04-7254cc802c4d
+# if not: gcloud config set project qwiklabs-gcp-04-7254cc802c4d
+echo 'export PROJECT_ID=qwiklabs-gcp-04-7254cc802c4d' >> ~/.bashrc && source ~/.bashrc
 ```
 Optional but recommended: run **`agy`** (Antigravity CLI) for boilerplate, GQL drafting and deploy scripts. Review diffs (`/diff`) before accepting.
 
@@ -146,7 +150,7 @@ pip install "google-adk[toolbox]" google-cloud-bigquery
 `agent/grant_advisor/.env` (never commit; see `.gitignore` in §9):
 ```
 GOOGLE_GENAI_USE_VERTEXAI=TRUE
-GOOGLE_CLOUD_PROJECT=<team-project-id>
+GOOGLE_CLOUD_PROJECT=qwiklabs-gcp-04-7254cc802c4d
 GOOGLE_CLOUD_LOCATION=us-central1
 BQ_DATASET=a4i_econ
 TOOLBOX_URL=http://127.0.0.1:5000
@@ -456,7 +460,7 @@ tools:
 Add `list_applicants`, `get_loan_history`, `corridor_industry_mix` the same way (SQL from P2).
 **Read-only curated tools only, no free-form `execute_sql`.** Run locally:
 ```bash
-export PROJECT_ID=$(gcloud config get-value project)
+export PROJECT_ID=qwiklabs-gcp-04-7254cc802c4d
 npx @toolbox-sdk/server --config toolbox/tools.yaml     # serves on 127.0.0.1:5000
 ```
 
