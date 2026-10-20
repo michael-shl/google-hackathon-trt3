@@ -46,7 +46,7 @@ Fill in names. Each person **owns files**, so we almost never edit the same file
 
 | # | Role | Name | Lane / branch | Owns | Core deliverable |
 |---|---|---|---|---|---|
-| **P1** | **Team Lead & Agent Architect** | Michael | `agent` | `agent/grant_advisor/agent.py`, `prompts.py`, `docs/decisions.md`, `main` branch | Root agent + system instruction, integration, decisions, time-keeping |
+| **P1** | **Team Lead & Agent Architect** | Michael | `agent` | `agent/grant_advisor/agent.py`, `prompts.py`, `docs/decisions.md`, `rc/1.0.0` + `main` merges | Root agent + system instruction, integration, decisions, time-keeping |
 | **P2** | **Graph Engineer** (data) | | `data` | `sql/0*_*.sql`, BigQuery dataset `a4i_econ` | Data loaded, **property graph created by T+1:00**, validation, `business_tract` + `applicants` tables |
 | **P3** | **Cascade & Judgment Analyst** (data) | | `data` | `sql/1*_*.sql`, `agent/grant_advisor/tools/scoring.py`, `tools/audit.py`, `docs/equity_audit.md` | Multi-hop cascade query, weighting/scoring, equity audit, SBA charge-off check |
 | **P4** | **Agent Tools Developer** | | `agent` | `agent/grant_advisor/tools/cascade.py`, `tools/memo.py`, `tools/bq.py`, `eval/` | Custom Python tools, Grant Memo builder, refusal behaviors, test questions |
@@ -241,7 +241,7 @@ MCP Toolbox tools (P5 + P2), names fixed so P1 can write the instruction now:
 - [ ] Write the system instruction v1 (draft below), refine with P6.
 
 **T+1:30–3:30**
-- [ ] Merge lane branches at each checkpoint (PR → `main`), keep `main` runnable.
+- [ ] Merge lane branches at each checkpoint (PR → `rc/1.0.0`), keep `rc/1.0.0` runnable; PR `rc/1.0.0` → `main` once after freeze.
 - [ ] Integration test with P4 using §8 questions; tune instruction from the `adk web` **trace** view.
 - [ ] Own the "when do we NOT fund the biggest hub?" answer (judges ask it).
 - [ ] Freeze at T+3:30. Be the narrator or the back-up narrator for the video.
@@ -555,11 +555,15 @@ gcloud run deploy toolbox \
 ## 9. Git workflow
 
 - Branches: `data` (P2, P3) · `agent` (P1, P4) · `frontend` (P5) · `story` (P6). Commit small, push often.
-- **`main` must always run.** Merge via PR at checkpoints (T+1:30, T+2:45, T+3:30); P1 merges.
+- **`rc/1.0.0` is the integration branch and must always run.** Lanes merge into it via PR at checkpoints
+  (T+1:30, T+2:45, T+3:30); P1 merges. **`main` changes once**: one PR `rc/1.0.0` → `main` after the
+  feature freeze, then submit the repo link.
   ```bash
   git add -A && git commit -m "feat(agent): get_cascade wraps 2-hop GQL"
-  git pull --rebase origin main && git push -u origin <branch>
-  gh pr create --fill --base main
+  git pull origin <branch>          # teammate's commits on the same lane
+  git pull origin rc/1.0.0          # other lanes' merged work (merge, don't rebase pushed commits)
+  git push -u origin <branch>
+  gh pr create --fill --base rc/1.0.0
   ```
 - Two people on one branch (`data`, `agent`): you own different files (§2) → pull before push.
 - Add to `.gitignore` (P1, first commit): `.venv/`, `.env`, `**/.env`, `__pycache__/`.
