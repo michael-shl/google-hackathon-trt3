@@ -9,6 +9,9 @@ The app is a **private** Cloud Run service; record the demo through
 `gcloud run services proxy grant-desk --region us-central1 --port 8501`.
 Click **Rank applicants** once before recording to warm the cache.
 
+> Slide numbers below follow the **Google Slides** deck we present. The copy in this repo leaves out
+> slide 2 (team roster with phone numbers and emails) for privacy, so it has 5 slides.
+
 | Slide | Time | Point to land |
 |:-:|:-:|---|
 | 1 Title | 0:00–0:20 | Businesses hold each other up |
