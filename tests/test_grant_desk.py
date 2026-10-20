@@ -86,3 +86,8 @@ def test_data_source_found_in_tool_and_mcp_responses_and_badged():
     assert data_source_badge("BigQuery p.a4i_econ · real")[0] == "success"
     assert data_source_badge("MOCK corridor · illustrative")[0] == "warning"
     assert data_source_badge(None)[0] == "info"
+
+
+def test_partial_award_is_badged():
+    rows = ranking_rows(rank_applicants(budget=50000))
+    assert any(r[""].endswith("partial") for r in rows)

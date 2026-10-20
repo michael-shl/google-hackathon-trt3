@@ -14,6 +14,9 @@ HUB_ROBUSTNESS = 0.5
 # Top two within this relative gap are reported as indistinguishable.
 TIE_TOLERANCE = 0.10
 DEFAULT_HOPS = 2
+# Budget left after full awards goes to the next-best applicant as a partial award (D12),
+# unless it is below this floor (no token grants).
+MIN_PARTIAL_AWARD = 1000
 
 
 def _hub_threshold(degrees: dict) -> float:
@@ -85,8 +88,9 @@ def rank_applicants(budget: int = 50000, assumption: str = "base",
         applicant_ids: Optional subset of applicant business_ids; default is the whole queue.
 
     Returns:
-        dict with 'status', 'assumptions', 'ranking' (with funded_amount and reason),
-        'recommendation', 'runner_up', 'indistinguishable', 'sensitivity' and 'unfunded_budget'.
+        dict with 'status', 'assumptions', 'ranking' (with funded_amount, partial and reason),
+        'recommendation', 'runner_up', 'indistinguishable', 'sensitivity', 'partial_award' and
+        'unfunded_budget'.
     """
     if assumption not in CLOSURE_RISK_REDUCTION:
         return {"status": "error",
@@ -114,6 +118,7 @@ def rank_applicants(budget: int = 50000, assumption: str = "base",
     for row in ranking:
         row["reason"] = _reason(row, risk_drop)
         row["expected_businesses_spared"] = round(risk_drop * row["reach_total"], 2)
+        row["partial"] = False
         if row["reach_total"] > 0 and row["requested"] <= remaining:
             row["funded_amount"] = row["requested"]
             remaining -= row["requested"]
@@ -121,6 +126,21 @@ def rank_applicants(budget: int = 50000, assumption: str = "base",
             row["funded_amount"] = 0
         row["exposure_score"] = round(row["exposure_score"], 6)
         row["score_per_10k"] = round(row["score_per_10k"], 6)
+
+    partial_award = None
+    if remaining >= MIN_PARTIAL_AWARD:
+        # Decision D12: the leftover goes to the best-ranked unfunded applicant that has a cascade;
+        # its effect is assumed proportional to the share of the request it receives.
+        nxt = next((r for r in ranking if r["reach_total"] > 0 and r["funded_amount"] == 0), None)
+        if nxt:
+            share = remaining / nxt["requested"]
+            nxt.update(funded_amount=remaining, partial=True,
+                       expected_businesses_spared=round(risk_drop * share * nxt["reach_total"], 2))
+            nxt["reason"] += (f" PARTIAL award: ${remaining:,} of ${nxt['requested']:,} requested; effect "
+                              f"assumed proportional ({share:.0%} of the closure-risk reduction).")
+            partial_award = {"business_id": nxt["business_id"], "name": nxt["name"], "amount": remaining,
+                             "requested": nxt["requested"], "share_of_request": round(share, 3)}
+            remaining = 0
 
     eligible = [r for r in ranking if r["reach_total"] > 0]
     top = eligible[0] if eligible else None
@@ -145,6 +165,9 @@ def rank_applicants(budget: int = 50000, assumption: str = "base",
             "path_weighting": "product of supply intensities along the path; strongest path per business",
             "hub_rule": f"top {1 - HUB_PERCENTILE:.0%} of suppliers by direct buyers get x{HUB_ROBUSTNESS}",
             "edge_basis": "Supply links are MODELED (BEA industry averages); loans are REAL (SBA).",
+            "allocation": ("full requests in score order; the leftover (>= "
+                           f"${MIN_PARTIAL_AWARD:,}) goes to the next-best applicant with a cascade as a "
+                           "partial award, effect assumed proportional to the share of its request"),
         },
         "ranking": ranking,
         "recommendation": top,
@@ -153,4 +176,5 @@ def rank_applicants(budget: int = 50000, assumption: str = "base",
         "sensitivity": sensitivity,
         "budget": int(budget),
         "unfunded_budget": remaining,
+        "partial_award": partial_award,
     }
