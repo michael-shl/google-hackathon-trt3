@@ -47,3 +47,28 @@ def test_ranking_rows_mark_recommendation_and_runner_up():
 def test_path_rows():
     rows = path_rows(get_cascade("B01"))
     assert any(r["Path"] == "Bayside Roasters → Kearny Kitchen → Larkin Event Hall" for r in rows)
+
+
+def test_desk_requests_ask_for_brief_replies():
+    from agent_client import DESK_HINT, AgentClient
+
+    sent = []
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return []
+
+    class FakeSession:
+        def post(self, url, json=None, headers=None, timeout=None):
+            sent.append(json)
+            return FakeResponse()
+
+    client = AgentClient(base_url="http://localhost:9999")
+    client._http = FakeSession()
+    client.ask("s1", "Rank them")
+    client.ask("s1", "Free question", brief=False)
+    assert sent[0]["new_message"]["parts"][0]["text"] == "Rank them" + DESK_HINT
+    assert sent[1]["new_message"]["parts"][0]["text"] == "Free question"

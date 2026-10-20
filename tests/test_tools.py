@@ -119,3 +119,29 @@ def test_path_json_parser_handles_bigquery_shape():
     assert _names_from_path_json(path) == ["Roaster", "Cafe"]
     assert _names_from_path_json('[{"kind": "node", "properties": {"name": "X"}}]') == ["X"]
     assert _names_from_path_json("not json") == []
+
+
+def test_cascades_for_many_seeds_use_one_batched_query(monkeypatch):
+    from grant_advisor.tools import data
+
+    calls = []
+
+    def fake_run(sql, **params):
+        calls.append((sql, params))
+        return [
+            {"seed_id": "A", "business_id": "X", "name": "X", "naics4": "7225", "hops": 1,
+             "path_strength": 0.1, "weakest_link": 0.1, "path_json": None},
+            {"seed_id": "A", "business_id": "Y", "name": "Y", "naics4": "7225", "hops": 2,
+             "path_strength": 0.01, "weakest_link": 0.1, "path_json": None},
+        ]
+
+    monkeypatch.setattr(data, "use_mock", lambda: False)
+    monkeypatch.setattr(data, "_run", fake_run)
+    data.prefetch_cascades(["A", "B"], 2)
+    assert len(calls) == 1
+    assert "IN UNNEST(@seed_ids)" in calls[0][0] and "{1,2}" in calls[0][0]
+    assert calls[0][1] == {"seed_ids": ["A", "B"]}
+    assert [r["business_id"] for r in data.cascade_paths("A", 1)] == ["X"]
+    assert len(data.cascade_paths("A", 2)) == 2
+    assert data.cascade_paths("B", 2) == ()
+    assert len(calls) == 1

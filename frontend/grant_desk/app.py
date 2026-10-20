@@ -26,12 +26,12 @@ def md(text: str) -> str:
     return (text or "").replace("$", "\\$")
 
 
-def ask(message: str, spinner: str):
+def ask(message: str, spinner: str, brief: bool = True):
     if "session_id" not in ss:
         ss.session_id = client().new_session()
     try:
         with st.spinner(spinner):
-            turn = client().ask(ss.session_id, message)
+            turn = client().ask(ss.session_id, message, brief=brief)
     except Exception as exc:  # network/auth problems are shown, not raised
         st.error(f"Agent call failed: {exc}")
         return None
@@ -156,7 +156,7 @@ for question, answer in ss.chat:
     st.chat_message("user").markdown(md(question))
     st.chat_message("assistant").markdown(md(answer))
 if question := st.chat_input("e.g. Are any of the downstream businesses already fragile?"):
-    turn = ask(question, "Thinking…")
+    turn = ask(question, "Thinking…", brief=False)
     if turn:
         ss.chat.append((question, turn.text or "_(no text answer; see the panels above)_"))
         st.rerun()

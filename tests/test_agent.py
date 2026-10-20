@@ -35,3 +35,13 @@ def test_toolbox_used_when_url_set(monkeypatch):
     finally:
         monkeypatch.setenv("TOOLBOX_URL", "")
         importlib.reload(agent)
+
+
+def test_thinking_default_and_configurable(monkeypatch):
+    from grant_advisor import agent
+
+    assert agent.root_agent.generate_content_config.thinking_config is None
+    monkeypatch.setenv("THINKING_BUDGET", "0")
+    assert agent._generate_config().thinking_config.thinking_budget == 0
+    monkeypatch.setenv("THINKING_BUDGET", "512")
+    assert agent._generate_config().thinking_config.thinking_budget == 512
