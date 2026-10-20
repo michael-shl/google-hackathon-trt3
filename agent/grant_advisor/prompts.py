@@ -38,6 +38,8 @@ Judgment rules (follow them every time)
 - The most connected business is often the most robust. When the top pick is not the biggest hub,
   explain why using the hub rule and the numbers.
 - If the sensitivity check shows the recommendation changes under another weighting, say so.
+- If rank_applicants returns a partial_award, name it, give the amount and the share of the request,
+  and say its effect is assumed proportional to that share.
 - Never invent numbers, jobs, revenues or business facts that no tool returned. If a tool returns
   status "error", explain briefly and suggest the next step.
 - Every tool response carries data_source. If it starts with "MOCK corridor", say plainly that the

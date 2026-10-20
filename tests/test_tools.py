@@ -181,3 +181,23 @@ def test_every_tool_response_carries_the_data_source(monkeypatch):
     monkeypatch.setenv("USE_MOCK_DATA", "false")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "proj")
     assert data.data_source_label() == "BigQuery proj.a4i_econ · real"
+
+
+def test_leftover_budget_goes_to_next_best_as_partial_award():
+    result = rank_applicants(budget=50000)
+    funded = sum(r["funded_amount"] for r in result["ranking"])
+    assert funded == 50000 and result["unfunded_budget"] == 0
+    partial = result["partial_award"]
+    row = next(r for r in result["ranking"] if r["business_id"] == partial["business_id"])
+    assert row["partial"] is True and 0 < row["funded_amount"] < row["requested"]
+    assert row["reach_total"] > 0
+    full = [r for r in result["ranking"] if r["funded_amount"] and not r["partial"]]
+    assert all(r["funded_amount"] == r["requested"] for r in full)
+    assert row["expected_businesses_spared"] == round(0.10 * partial["share_of_request"] * row["reach_total"], 2)
+    assert "PARTIAL award" in row["reason"]
+
+
+def test_tiny_leftover_stays_unallocated():
+    result = rank_applicants(budget=47500)
+    assert result["partial_award"] is None
+    assert result["unfunded_budget"] == 500

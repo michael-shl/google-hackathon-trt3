@@ -90,6 +90,11 @@ with left:
         m1.metric("Budget", f"${ranking.get('budget', 0):,}")
         m2.metric("Allocated", f"${funded:,}")
         m3.metric("Unallocated", f"${ranking.get('unfunded_budget', 0):,}")
+        partial = ranking.get("partial_award")
+        if partial:
+            st.info(md(f"Partial award: **{partial['name']}** gets ${partial['amount']:,} of its "
+                       f"${partial['requested']:,} request ({partial['share_of_request']:.0%}); its effect is "
+                       f"assumed proportional to that share."))
         st.dataframe(ranking_rows(ranking), hide_index=True, use_container_width=True,
                      column_order=["", "Business", "Requested", "Funded", "Reach (1 hop / 2 hops)", "Hub",
                                    "Tract poverty", "Score per $10k"])

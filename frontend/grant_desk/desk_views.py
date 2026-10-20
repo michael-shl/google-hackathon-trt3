@@ -38,6 +38,8 @@ def ranking_rows(ranking: dict) -> list[dict]:
     rows = []
     for r in ranking.get("ranking") or []:
         badge = "★ pick" if r["business_id"] == rec else ("runner-up" if r["business_id"] == runner else "")
+        if r.get("partial"):
+            badge = (badge + " · partial").strip(" ·")
         poverty = r.get("tract_poverty")
         rows.append({
             "": badge,
