@@ -36,7 +36,12 @@ bash scripts/deploy_desk.sh
 gcloud run services proxy grant-desk --region us-central1 --port 8501     # then http://localhost:8501
 ```
 Runs as service account `grant-desk` (Terraform) with `roles/run.invoker`, and calls the private agent
-with an ID token from the metadata server. One instance with session affinity and a 1-hour timeout
-(Streamlit keeps each session in memory over a websocket).
+with an ID token from the metadata server. 1–3 instances, 250 concurrent requests each, session
+affinity and a 15-minute timeout. Each open tab holds a websocket; the old 1 × 80 limit caused
+"Rate exceeded" (429) once stale websockets filled the slots.
+
+**Access:** the agent is private. The desk currently has Cloud Run's *allow public access* enabled
+(`invoker-iam-disabled=true`, set in the console) so the deck link opens without a login. Turn it off
+with `gcloud run services update grant-desk --region us-central1 --invoker-iam-check`.
 
 Tests: `pytest tests/test_grant_desk.py -q` (event parsing, cascade picture, queue rows).
