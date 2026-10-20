@@ -8,8 +8,12 @@ terraform {
     }
   }
 
-  # State is local (terraform/terraform.tfstate in Cloud Shell's persistent $HOME).
-  # Only ONE teammate (P5) runs apply. See README.md for an optional GCS backend.
+  # Shared state in the lab project (versioned bucket), so Terraform can run from any teammate's
+  # Cloud Shell or laptop. Run it from ONE place at a time; the GCS backend locks during apply.
+  backend "gcs" {
+    bucket = "qwiklabs-gcp-04-7254cc802c4d-tfstate"
+    prefix = "trt3"
+  }
 }
 
 provider "google" {

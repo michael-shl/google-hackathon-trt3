@@ -38,7 +38,7 @@ When P2 has loaded `a4i_econ` and created the `LocalEconomy` graph (`business_tr
 
 ## Deploy
 
-`terraform output -raw adk_deploy_command` (see [terraform/README.md](../terraform/README.md)).
+`bash scripts/deploy_agent.sh mock|real` from the repo root (see [terraform/README.md](../terraform/README.md)).
 The local `.env` is excluded from deploys by `grant_advisor/.gcloudignore`. ADK would otherwise
 load it with override=True and replace the Cloud Run settings.
 
