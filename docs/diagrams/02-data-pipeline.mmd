@@ -1,0 +1,41 @@
+flowchart LR
+    subgraph sources["Public sources · license-clean"]
+        direction TB
+        sf["SF Registered Business Locations<br/>PDDL · REAL"]
+        sba["SBA 7(a) FOIA loans<br/>REAL, incl. charge-offs"]
+        lehd["Census LEHD LODES 8<br/>job counts · REAL"]
+        bea["BEA Input-Output<br/>industry purchase rates"]
+        acs["ACS 2016-2020 5-year<br/>REAL"]
+        tiger["TIGER tract shapes"]
+    end
+
+    nb["<b>Load</b><br/>notebook c3_01_load_explore<br/>or scripts/load.sh"]
+
+    subgraph base["BigQuery a4i_econ · base tables"]
+        direction TB
+        businesses[("businesses · REAL")]
+        supplies[("supplies · MODELED")]
+        footfall[("draws_footfall_from · MODELED")]
+        blocks[("employer_blocks · REAL")]
+        loans[("borrowed_from · REAL")]
+        tracts[("tract_demographics · REAL")]
+    end
+
+    s01["sql/01_property_graph.sql"]
+    s02["sql/02_business_need.sql<br/>2010 shapes → 2020 ACS tracts"]
+    s03["sql/03_applicants.sql<br/>matched by name"]
+
+    subgraph derived["BigQuery a4i_econ · built on top"]
+        direction TB
+        graph01[("<b>LocalEconomy</b><br/>property graph")]
+        need[("business_tract · business_need")]
+        apps[("applicants · SIMULATED")]
+    end
+
+    sf & sba & lehd & bea & acs --> nb
+    nb --> base
+    base --> s01 --> graph01
+    businesses --> s02
+    tiger & acs --> s02
+    s02 --> need
+    businesses --> s03 --> apps

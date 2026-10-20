@@ -1,0 +1,226 @@
+"""Grant Desk: a one-page front end for the grant_advisor agent (owner: P5).
+
+Run locally (agent reachable via `gcloud run services proxy grant-advisor --port 8080`):
+    streamlit run app.py
+"""
+
+import streamlit as st
+
+from agent_client import AgentClient
+from desk_views import cascade_dot, data_source_badge, find_data_source, path_rows, ranking_rows
+
+st.set_page_config(page_title="Grant Desk · Central Market", page_icon="🏛️", layout="wide")
+ss = st.session_state
+for key, default in (("trace", []), ("chat", []), ("ranking", None), ("rank_text", ""),
+                     ("cascade", None), ("cascade_text", ""), ("memo", None), ("data_source", None)):
+    ss.setdefault(key, default)
+
+
+@st.cache_resource
+def client() -> AgentClient:
+    return AgentClient()
+
+
+def md(text: str) -> str:
+    """Streamlit renders $...$ as LaTeX; agent text is full of dollar amounts."""
+    return (text or "").replace("$", "\\$")
+
+
+def ask(message: str, spinner: str, brief: bool = True):
+    if "session_id" not in ss:
+        ss.session_id = client().new_session()
+    try:
+        with st.spinner(spinner):
+            turn = client().ask(ss.session_id, message, brief=brief)
+    except Exception as exc:  # network/auth problems are shown, not raised
+        st.error(f"Agent call failed: {exc}")
+        return None
+    ss.trace.append({"message": message, "calls": turn.tool_calls})
+    source = find_data_source(turn.tool_responses)
+    if source:
+        ss.data_source = source
+    for tool, key in (("rank_applicants", "ranking"), ("get_cascade", "cascade"), ("build_grant_memo", "memo")):
+        resp = turn.latest(tool)
+        if resp and resp.get("status") == "success":
+            ss[key] = resp
+    return turn
+
+
+# ------------------------------------------------------------------ header + controls
+st.title("🏛️ Grant Desk: Central Market micro-grants")
+st.caption("Relief fund for the Central Market corridor, San Francisco. Every table and picture below is drawn "
+           "from the agent's own tool calls over the corridor's supply-network property graph.")
+header_source = st.empty()
+
+with st.sidebar:
+    st.header("Fund")
+    sidebar_source = st.empty()
+    budget = st.number_input("Budget (USD)", min_value=1000, max_value=1_000_000, value=50_000, step=5_000)
+    assumption = st.selectbox("What a full grant changes", ["base", "pessimistic", "optimistic"],
+                              format_func={"base": "Base: closure risk −10 pts",
+                                           "pessimistic": "Pessimistic: −5 pts",
+                                           "optimistic": "Optimistic: −20 pts"}.get)
+    if st.button("Rank applicants", type="primary", use_container_width=True):
+        turn = ask(f"I have ${budget:,}. Rank the applicants using rank_applicants with the {assumption} "
+                   f"assumption and recommend who to fund.", "Ranking the queue…")
+        if turn:
+            ss.rank_text, ss.cascade, ss.memo = turn.text, None, None
+    if st.button("New session", use_container_width=True):
+        for key in ("session_id", "ranking", "cascade", "memo"):
+            ss.pop(key, None)
+        ss.trace, ss.chat, ss.rank_text, ss.cascade_text = [], [], "", ""
+        st.rerun()
+    st.divider()
+    st.caption("**Evidence:** supply links are MODELED (BEA industry averages assigned to nearby business "
+               "pairs). Businesses, SBA loans and census demographics are real. A grant changes a "
+               "probability, not an outcome.")
+    st.caption(f"Agent: `{client().base_url}`")
+
+# ------------------------------------------------------------------ 1 · queue
+with st.container(border=True):
+    st.subheader("1 · Funding queue")
+    st.caption("Who to fund with this budget, ranked by downstream exposure protected per grant dollar.")
+    ranking = ss.ranking
+    if not ranking:
+        st.info("Set a budget in the sidebar and click **Rank applicants**.")
+    else:
+        funded = sum(r.get("funded_amount") or 0 for r in ranking.get("ranking", []))
+        rec_row = ranking.get("recommendation") or {}
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Budget", f"${ranking.get('budget', 0):,}")
+        m2.metric("Allocated", f"${funded:,}")
+        m3.metric("Unallocated", f"${ranking.get('unfunded_budget', 0):,}")
+        if rec_row:
+            st.success(md(f"★ Top pick: **{rec_row['name']}**, ${rec_row.get('funded_amount') or rec_row['requested']:,}. "
+                          f"Protects {rec_row['reach_total']} downstream businesses "
+                          f"({rec_row['reach_hop1']} direct, {rec_row['reach_hop2']} at two hops)."))
+        partial = ranking.get("partial_award")
+        if partial:
+            st.info(md(f"Partial award: **{partial['name']}** gets ${partial['amount']:,} of its "
+                       f"${partial['requested']:,} request ({partial['share_of_request']:.0%}); its effect is "
+                       f"assumed proportional to that share."))
+        st.dataframe(ranking_rows(ranking), hide_index=True, use_container_width=True,
+                     column_order=["", "Business", "Requested", "Funded", "Reach (1 hop / 2 hops)", "Hub",
+                                   "Tract poverty", "Score per $10k"])
+        if ranking.get("indistinguishable"):
+            st.warning("The top two are within 10% of each other: indistinguishable on this evidence.")
+        changed = [s for s in ranking.get("sensitivity", []) if s.get("changes_recommendation")]
+        stable = [s for s in ranking.get("sensitivity", []) if not s.get("changes_recommendation")]
+        if changed:
+            st.warning("Recommendation changes under: " + ", ".join(
+                f"{s['variant'].replace('_', ' ')} (→ {s['top_pick']})" for s in changed))
+        if stable:
+            st.caption("Sensitivity: stable under " + ", ".join(s["variant"].replace("_", " ") for s in stable))
+        if ss.rank_text:
+            with st.expander("Agent's reasoning", expanded=True):
+                st.markdown(md(ss.rank_text))
+
+# ------------------------------------------------------------------ 2 · cascade
+with st.container(border=True):
+    st.subheader("2 · Cascade it protects")
+    st.caption("If this business closes, who is exposed? Walks the supply graph up to two hops downstream.")
+    ranking = ss.ranking
+    if not ranking:
+        st.info("Rank the queue first.")
+    else:
+        options = {r["business_id"]: r["name"] for r in ranking.get("ranking", [])}
+        default_id = (ranking.get("recommendation") or {}).get("business_id")
+        ids = list(options)
+        pick_col, button_col = st.columns([3, 1], vertical_alignment="bottom")
+        chosen = pick_col.selectbox("Applicant", ids, index=ids.index(default_id) if default_id in ids else 0,
+                                    format_func=options.get)
+        if button_col.button("Trace cascade", type="primary", use_container_width=True,
+                             help="Multi-hop graph traversal: MATCH (seed)-[:Supplies]->{1,2}(exposed)"):
+            turn = ask(f"Show the downstream cascade for {options[chosen]} (business_id {chosen}) using "
+                       f"get_cascade with 2 hops.", "Walking the supply graph…")
+            if turn:
+                ss.cascade_text = turn.text
+        cascade = ss.cascade
+        if cascade:
+            counts = cascade.get("counts", {})
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Exposed businesses", counts.get("total", 0))
+            c2.metric("Direct buyers (1 hop)", counts.get("hop1", 0))
+            c3.metric("Two hops out", counts.get("hop2", 0))
+            if cascade.get("exposed"):
+                pic_col, table_col = st.columns([1, 1.2])
+                with pic_col:
+                    st.markdown(f"**{cascade['seed']['name']}**: strongest paths")
+                    st.graphviz_chart(cascade_dot(cascade), use_container_width=True)
+                with table_col:
+                    st.dataframe(path_rows(cascade), hide_index=True, use_container_width=True, height=420)
+            else:
+                st.info(cascade.get("note", "No downstream supply links."))
+            if ss.cascade_text:
+                st.markdown(md(ss.cascade_text))
+            st.caption(cascade.get("edge_basis", ""))
+
+# ------------------------------------------------------------------ 3 · memo
+with st.container(border=True):
+    st.subheader("3 · Grant Memo")
+    st.caption("The write-up an officer can take into Friday's meeting: who, how much, the cascade, the runner-up, "
+               "assumptions and equity.")
+    rec, runner = (ss.ranking or {}).get("recommendation"), (ss.ranking or {}).get("runner_up")
+    if not rec:
+        st.info("Rank the queue to get a recommendation, then write the memo.")
+    else:
+        label = (f"Write memo: fund {rec['name']} ${rec['requested']:,}"
+                 + (f" (runner-up {runner['name']})" if runner else ""))
+        if st.button(md(label), type="primary"):
+            ask(f"Write it up for Friday with build_grant_memo: fund {rec['name']} (business_id {rec['business_id']}) "
+                f"for ${rec['requested']}"
+                + (f", runner-up {runner['name']} (business_id {runner['business_id']})" if runner else "")
+                + f", {assumption} assumption.", "Writing the memo…")
+        memo = ss.memo
+        if memo:
+            memo_col, pic_col = st.columns([1.5, 1])
+            with memo_col:
+                st.markdown(md(memo["memo_markdown"]))
+                st.download_button("Download memo (.md)", memo["memo_markdown"], file_name="grant_memo.md")
+            with pic_col:
+                st.graphviz_chart(memo["cascade_dot"], use_container_width=True)
+
+# ------------------------------------------------------------------ 4 · ask + trace
+def suggested_questions() -> list[str]:
+    """Verified demo questions (eval/ask_the_advisor.md), using names from the current ranking."""
+    ranking = ss.ranking or {}
+    top = (ranking.get("recommendation") or {}).get("name")
+    other = (ranking.get("partial_award") or ranking.get("runner_up") or {}).get("name")
+    first = (f"Why {top} and not {other}? Show me the paths." if top and other
+             else "I have $50,000. Who should we fund?")
+    return [first,
+            "Whose neighborhood does this allocation help? Run the equity audit.",
+            "What would happen if Eddy St Bodega closed?",
+            "Which parts of this recommendation are real data and which are modeled?"]
+
+
+def ask_and_record(question: str):
+    turn = ask(question, "Thinking…", brief=False)
+    if turn:
+        ss.chat.append((question, turn.text or "_(no text answer; see the panels above)_"))
+        st.rerun()
+
+
+with st.container(border=True):
+    st.subheader("4 · Ask the advisor")
+    st.caption("Follow-up questions in plain language. Answers come from the same tools and data as the panels above.")
+    for question, answer in ss.chat:
+        st.chat_message("user").markdown(md(question))
+        st.chat_message("assistant").markdown(md(answer))
+    suggestion = st.pills("Try:", suggested_questions(), selection_mode="single", key=f"suggest_{len(ss.chat)}")
+    if suggestion:
+        ask_and_record(suggestion)
+    with st.expander("Agent tool calls (the traversal behind this screen)"):
+        for item in reversed(ss.trace):
+            st.markdown(f"**{item['message']}**")
+            st.code("\n".join(f"{c['name']}({c['args']})" for c in item["calls"]) or "(no tool calls)",
+                    language="text")
+
+if question := st.chat_input("e.g. Are any of the downstream businesses already fragile?"):
+    ask_and_record(question)
+
+# ------------------------------------------------------------------ data source badge
+# Filled last so it reflects the newest tool response from any button on this run.
+kind, badge_text = data_source_badge(ss.data_source)
+getattr(sidebar_source, kind)(badge_text)
+header_source.caption(badge_text)
