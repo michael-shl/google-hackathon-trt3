@@ -11,6 +11,10 @@ output "agent_service_account" {
   value = google_service_account.agent.email
 }
 
+output "desk_service_account" {
+  value = google_service_account.desk.email
+}
+
 output "adk_deploy_command" {
   description = "Run from the repo's agent/ directory after the agent package exists."
   value       = <<-EOT

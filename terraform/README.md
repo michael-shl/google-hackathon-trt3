@@ -13,6 +13,7 @@ Agent: `grant-advisor` deployed in **mock** mode via `scripts/deploy_agent.sh mo
 | 13 APIs | Vertex AI, BigQuery (+ Reservation, Storage), Cloud Run, Cloud Build, Artifact Registry, Secret Manager, IAM, Logging, Storage | Gemini, graph queries, deployments |
 | Service account | `toolbox-identity` | Runs MCP Toolbox: BigQuery `jobUser` + `dataViewer`, Secret Manager accessor on `tools` only |
 | Service account | `grant-advisor` | Runs the ADK agent: Vertex AI `user`, BigQuery `jobUser` + `dataViewer` (`dataEditor` if `agent_can_write_bigquery`), invoker on Toolbox |
+| Service account | `grant-desk` | Runs the Grant Desk front end: `run.invoker` (calls the private agent), `logging.logWriter` |
 | IAM for Compute default SA | `run.builder`, `artifactregistry.writer`, … | `adk deploy cloud_run` builds from source with this account; new projects often lack these roles |
 | Secret | `tools` | `../toolbox/tools.yaml`; every edit becomes a new version and redeploys Toolbox |
 | Cloud Run service | `toolbox` | **Google-managed MCP server** (challenge requirement), `min_instance_count=1` (no cold start on stage) |
@@ -28,6 +29,7 @@ Agent: `grant-advisor` deployed in **mock** mode via `scripts/deploy_agent.sh mo
 | Dataset + reservation (default) | `scripts/load.sh` | load.sh already creates/reuses them idempotently |
 | Property graph `LocalEconomy`, `business_tract`, `applicants` | `sql/*.sql` (P2) | DDL over data that changes; must re-run after loads |
 | Agent Cloud Run service `grant-advisor` | [`scripts/deploy_agent.sh`](../scripts/deploy_agent.sh) (`adk deploy cloud_run`) | ADK builds the container from source on each deploy |
+| Front-end Cloud Run service `grant-desk` | [`scripts/deploy_desk.sh`](../scripts/deploy_desk.sh) (`gcloud run deploy --source`) | Built from `frontend/grant_desk/Dockerfile` on each deploy |
 | The GCP project itself | Qwiklabs | Provided per team; we have Owner, no billing setup needed |
 
 ## Run it (as the Qwiklabs student account)
