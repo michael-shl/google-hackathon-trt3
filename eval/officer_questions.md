@@ -38,3 +38,4 @@ select **grant_advisor** (top-left), click **No Thanks** on the telemetry pop-up
 | Date / revision | Data | Q1 | Q2 | Q3 | Q4 | Q5 | Q6 | Q7 | R1 | R2 | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 2026-10-20 / grant-advisor-00002 | mock | ✅ | ✅ | – | – | ⚠️ | ✅ | ⚠️ | ✅ | – | Q5 vague about $8k (fixed in prompt); Q7 equity line said "lower poverty (24% vs 24%)" and flagged every single-business industry (fixed: sector-level audit, 1-pt tolerance) |
+| 2026-10-20 / grant-advisor-00003 | mock | | | | | ✅ | | | | | Q5 now: 8,000/15,000 × 10 pts ≈ 5.3 pts, ~0.3 of 6 exposed businesses, labeled an assumption |

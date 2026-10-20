@@ -10,6 +10,12 @@ resource "google_service_account" "agent" {
   depends_on   = [google_project_service.enabled]
 }
 
+resource "google_service_account" "desk" {
+  account_id   = "grant-desk"
+  display_name = "Grant Desk Streamlit front end on Cloud Run"
+  depends_on   = [google_project_service.enabled]
+}
+
 locals {
   toolbox_roles = [
     "roles/bigquery.jobUser",
@@ -57,4 +63,14 @@ resource "google_project_iam_member" "build" {
   role       = each.value
   member     = "serviceAccount:${local.compute_sa}"
   depends_on = [google_project_service.enabled]
+}
+
+# The Grant Desk calls the private grant-advisor service. Project-level invoker because the agent
+# service is created by `adk deploy`, not Terraform.
+resource "google_project_iam_member" "desk" {
+  for_each = toset(["roles/run.invoker", "roles/logging.logWriter"])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.desk.email}"
 }
