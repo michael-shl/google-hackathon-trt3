@@ -21,6 +21,9 @@ select **grant_advisor** (top-left), click **No Thanks** on the telemetry pop-up
 
 ## The questions
 
+> Real-data question bank with verified answers and a suggested video sequence:
+> [ask_the_advisor.md](ask_the_advisor.md).
+
 | # | Ask | Expected tools | Pass if |
 |---|---|---|---|
 | Q1 | I have $50,000. Who should we fund? | `rank_applicants` | Allocation within budget; top pick ≠ biggest hub, with the hub rule explained; leaves not funded on cascade grounds; 10-pt assumption + "supply links are modeled" stated |
