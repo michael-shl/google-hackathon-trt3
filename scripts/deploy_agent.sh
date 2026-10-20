@@ -9,6 +9,8 @@
 # `terraform apply` done (service account grant-advisor + Cloud Run service toolbox).
 # The service is private; open it with:
 #   gcloud run services proxy grant-advisor --region us-central1 --port 8080   ->  http://localhost:8080
+# The proxy rewrites Host to *.run.app, so ADK's origin check must allow localhost origins
+# (otherwise the dev UI loads blank with 403 "origin not allowed"). Override with ALLOW_ORIGINS.
 
 set -euo pipefail
 
@@ -47,6 +49,7 @@ echo "Deploying ${SERVICE} (${MODE}) to ${PROJECT}/${REGION} as ${SA}"
 cd "${ROOT}/agent"
 adk deploy cloud_run --project "${PROJECT}" --region "${REGION}" \
   --service_name "${SERVICE}" --with_ui "${ENV_ARGS[@]}" \
+  --allow_origins "${ALLOW_ORIGINS:-regex:http://(localhost|127\.0\.0\.1):\d+}" \
   ./grant_advisor \
   -- --service-account="${SA}" --min-instances=1 --no-allow-unauthenticated --quiet
 
