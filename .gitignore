@@ -18,6 +18,7 @@ credentials.json
 # OS noise
 .DS_Store
 Thumbs.db
+~$*
 
 # Local data pulls. The two BEA files are DELIBERATE exceptions - they are the
 # pinned coefficient table the notebook depends on, and the concordance used to
