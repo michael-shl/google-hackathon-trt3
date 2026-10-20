@@ -1,6 +1,10 @@
 # Terraform: team infrastructure for `qwiklabs-gcp-04-7254cc802c4d`
 
-**Owner: P5 (Platform).** Only one person runs `terraform apply`, because the state is local.
+**Owner: P5 (Platform).** State lives in `gs://qwiklabs-gcp-04-7254cc802c4d-tfstate/trt3` (versioned, locked during
+apply), so it can run from Cloud Shell or a laptop, but from one place at a time.
+
+**Status (applied 2026-10-20):** 32 resources created. Toolbox: `https://toolbox-7sw2gxdyba-uc.a.run.app` (5 MCP tools).
+Agent: `grant-advisor` deployed in **mock** mode via `scripts/deploy_agent.sh mock`.
 
 ## What Terraform creates
 
@@ -23,33 +27,42 @@
 | Tables in `a4i_econ` | `scripts/load.sh` (P2) | Replaced on every load; Terraform would fight it |
 | Dataset + reservation (default) | `scripts/load.sh` | load.sh already creates/reuses them idempotently |
 | Property graph `LocalEconomy`, `business_tract`, `applicants` | `sql/*.sql` (P2) | DDL over data that changes; must re-run after loads |
-| Agent Cloud Run service `grant-advisor` | `adk deploy cloud_run` (command printed as an output) | ADK builds the container from source on each deploy |
+| Agent Cloud Run service `grant-advisor` | [`scripts/deploy_agent.sh`](../scripts/deploy_agent.sh) (`adk deploy cloud_run`) | ADK builds the container from source on each deploy |
 | The GCP project itself | Qwiklabs | Provided per team; we have Owner, no billing setup needed |
 
-## Run it (Cloud Shell, as the Qwiklabs student account)
+## Run it (as the Qwiklabs student account)
 
-Terraform and credentials are already in Cloud Shell.
+**Cloud Shell:** Terraform and credentials are already there.
+**Laptop:** use a separate gcloud config so your work account is untouched (zsh: don't paste `#` comments):
+```bash
+export CLOUDSDK_CONFIG=~/.config/gcloud-hackathon
+export GOOGLE_APPLICATION_CREDENTIALS=$CLOUDSDK_CONFIG/application_default_credentials.json
+```
+(after `gcloud auth login` + `gcloud auth application-default login` as the student once).
 
 ```bash
 cd ~/google-hackathon-trt3/terraform
 gcloud config set project qwiklabs-gcp-04-7254cc802c4d
 terraform init
-terraform plan          # review
-terraform apply         # ~3-5 min the first time (API enablement)
+terraform plan
+terraform apply
 terraform output toolbox_url
-terraform output -raw adk_deploy_command
 ```
 
-Smoke-test Toolbox (lists tools if healthy):
+Smoke-test Toolbox over MCP (Toolbox v1.x disables the old `/api/toolset` endpoint; it returns 410):
 ```bash
-curl -s "$(terraform output -raw toolbox_url)/api/toolset/grant_toolset" | head -c 400; echo
+curl -s -X POST "$(terraform output -raw toolbox_url)/mcp" \
+  -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | head -c 400; echo
 ```
 
-Deploy the agent when `agent/grant_advisor/` exists (from the `agent/` directory):
+Deploy the agent (from the repo root, with `agent/.venv` active):
 ```bash
-cd ~/google-hackathon-trt3/agent
-eval "$(cd ../terraform && terraform output -raw adk_deploy_command)"
+bash scripts/deploy_agent.sh mock     # mock corridor (works before the data lane finishes)
+bash scripts/deploy_agent.sh real     # BigQuery + graph + MCP Toolbox
+gcloud run services proxy grant-advisor --region us-central1 --port 8080    # then http://localhost:8080
 ```
+The agent service is private (`--no-allow-unauthenticated`); the proxy uses your gcloud login.
 
 ## Common changes
 
@@ -81,16 +94,5 @@ eval "$(cd ../terraform && terraform output -raw adk_deploy_command)"
 | `adk deploy` build fails with permission errors | Confirm `grant_build_roles = true` was applied; wait 1–2 min for IAM propagation, retry |
 | Toolbox revision fails to start | `gcloud run services logs read toolbox --region us-central1 --limit 50`; usually YAML syntax in `tools.yaml` |
 | Graph query: *"requires a reservation with Enterprise…"* | Reservation assignment takes ~1 min; or run `bash scripts/load.sh central-market` |
-
-## Optional: shared state in GCS
-
-If more than one person must run Terraform, create a bucket and add to `versions.tf`:
-```hcl
-backend "gcs" {
-  bucket = "qwiklabs-gcp-04-7254cc802c4d-tfstate"
-  prefix = "trt3"
-}
-```
-then `gcloud storage buckets create gs://qwiklabs-gcp-04-7254cc802c4d-tfstate --location=US` and `terraform init -migrate-state`.
 
 **Cleanup:** the Qwiklabs project is deleted when the lab ends. `terraform destroy` is not needed.
