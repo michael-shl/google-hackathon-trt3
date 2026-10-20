@@ -70,8 +70,24 @@ def test_equity_audit_compares_with_corridor():
     result = equity_audit(["B01", "B04", "B09"])
     assert result["status"] == "success"
     assert result["poverty"]["funded_avg"] is not None and result["poverty"]["corridor_avg"] is not None
-    assert {r["naics4"] for r in result["industry_mix"]} == {"3119", "7223", "3118"}
+    by_sector = {r["sector"]: r for r in result["sector_mix"]}
+    assert set(by_sector) == {"31-33", "72"}
+    assert by_sector["31-33"]["funded_count"] == 2
+    assert "Manufacturing (2 funded" in result["finding"]
+    assert "Accommodation" not in result["finding"].split("Nothing funded in")[0]
+    assert any(r["sector"] == "81" for r in result["unfunded_large_sectors"])
     assert equity_audit([])["status"] == "error"
+
+
+def test_equity_audit_single_business_per_sector_is_not_flagged():
+    result = equity_audit(["B01", "B04", "B13"])
+    assert "Over-represented" not in result["finding"]
+
+
+def test_equity_audit_near_equal_poverty_reads_about_the_same():
+    result = equity_audit(["B01", "B04", "B09", "B13"])
+    assert "about the same poverty rate" in result["finding"]
+    assert "lower poverty" not in result["finding"]
 
 
 def test_memo_has_all_seven_sections_and_a_picture():
