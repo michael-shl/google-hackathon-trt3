@@ -15,9 +15,12 @@ def _param(name, value):
 
 
 def run(sql: str, **params) -> list[dict]:
-    """Runs a parameterized query (use @name in SQL) and returns rows as dicts."""
+    """Runs a parameterized query (use @name in SQL) and returns rows as dicts.
+
+    query_and_wait uses the jobs.query fast path (no job polling for small results).
+    """
     global _client
     if _client is None:
         _client = bigquery.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
     job_config = bigquery.QueryJobConfig(query_parameters=[_param(k, v) for k, v in params.items()])
-    return [dict(row) for row in _client.query(sql, job_config=job_config).result()]
+    return [dict(row) for row in _client.query_and_wait(sql, job_config=job_config)]

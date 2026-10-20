@@ -41,7 +41,7 @@ def get_neighborhood(business_id: str) -> dict:
     """
     hood = data.neighborhood(business_id)
     if hood is None:
-        return {"status": "error", "error_message": "No tract data for this business (business_tract may be missing)."}
+        return {"status": "error", "error_message": "No neighborhood data for this business (business_need may be missing)."}
     return {"status": "success", "business_id": business_id, **hood}
 
 

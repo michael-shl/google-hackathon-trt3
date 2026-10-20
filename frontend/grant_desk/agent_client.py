@@ -6,12 +6,18 @@ The Grant Desk draws its tables and cascade pictures from the agent's own tool r
 
 import os
 import subprocess
+import time
 import uuid
 from dataclasses import dataclass, field
 
 import requests
 
 APP_NAME = "grant_advisor"
+# Appended to every Grant Desk request: the desk renders tool results itself, so the agent replies
+# briefly instead of re-typing tables and the memo (saves seconds of output tokens per click).
+DESK_HINT = ("\n\n[Grant Desk request: first call the tool named above; the desk renders its result "
+             "on screen. Then reply in at most 3 sentences without repeating tables, paths or the memo.]")
+TOKEN_TTL_SECONDS = 45 * 60
 
 
 @dataclass
@@ -67,24 +73,29 @@ class AgentClient:
         self.user_id = user_id
         self.timeout = timeout
         self._needs_token = self.base_url.startswith("https://")
+        self._token: str | None = None
+        self._token_time = 0.0
+        self._http = requests.Session()
 
     def _headers(self) -> dict:
         headers = {"content-type": "application/json"}
         if self._needs_token:
-            token = _identity_token(self.base_url)
-            if token:
-                headers["authorization"] = f"Bearer {token}"
+            if not self._token or time.time() - self._token_time > TOKEN_TTL_SECONDS:
+                self._token, self._token_time = _identity_token(self.base_url), time.time()
+            if self._token:
+                headers["authorization"] = f"Bearer {self._token}"
         return headers
 
     def new_session(self) -> str:
         session_id = f"desk-{uuid.uuid4().hex[:12]}"
         url = f"{self.base_url}/apps/{APP_NAME}/users/{self.user_id}/sessions/{session_id}"
-        requests.post(url, json={}, headers=self._headers(), timeout=30).raise_for_status()
+        self._http.post(url, json={}, headers=self._headers(), timeout=30).raise_for_status()
         return session_id
 
-    def ask(self, session_id: str, message: str) -> AgentTurn:
+    def ask(self, session_id: str, message: str, brief: bool = True) -> AgentTurn:
+        text = message + (DESK_HINT if brief else "")
         payload = {"app_name": APP_NAME, "user_id": self.user_id, "session_id": session_id,
-                   "new_message": {"role": "user", "parts": [{"text": message}]}}
-        resp = requests.post(f"{self.base_url}/run", json=payload, headers=self._headers(), timeout=self.timeout)
+                   "new_message": {"role": "user", "parts": [{"text": text}]}}
+        resp = self._http.post(f"{self.base_url}/run", json=payload, headers=self._headers(), timeout=self.timeout)
         resp.raise_for_status()
         return parse_events(resp.json())

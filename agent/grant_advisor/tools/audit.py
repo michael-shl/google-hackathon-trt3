@@ -89,7 +89,7 @@ def equity_audit(funded_ids: list[str]) -> dict:
             findings.append(f"Funded businesses sit in tracts with {'higher' if gap > 0 else 'lower'} poverty "
                             f"({_pct(poverty['funded_avg'])}) than the corridor average ({_pct(poverty['corridor_avg'])}).")
     else:
-        findings.append("Tract demographics unavailable (business_tract table missing); poverty comparison skipped.")
+        findings.append("Neighborhood data unavailable (business_need table missing, see sql/02_business_need.sql); poverty comparison skipped.")
 
     result = {"status": "success", "funded_count": len(funded), "sector_mix": sector_mix,
               "unfunded_large_sectors": unfunded_large, "poverty": poverty, "no_vehicle": no_vehicle,

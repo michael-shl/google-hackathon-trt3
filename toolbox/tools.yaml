@@ -49,21 +49,20 @@ statement: |
   GROUP BY naics4
   ORDER BY businesses DESC
 ---
-# Needs a4i_econ.business_tract (P2, sql/02_business_tract.sql).
+# Needs a4i_econ.business_need (P2, sql/02_business_need.sql).
 kind: tool
 name: get_neighborhood
 type: bigquery-sql
 source: bq
-description: Census tract demographics (population, median income, poverty, no-vehicle and public-assistance rates) where a business is located.
+description: Neighborhood need where a business is located (ACS 2016-2020) - population, median income, poverty, no-vehicle and public-assistance rates. match_method 'split_base' means the 2010 tract was split in 2020 and the figures combine its successor tracts.
 parameters:
   - name: business_id
     type: string
     description: The business_id from find_business or list_applicants.
 statement: |
-  SELECT bt.tract, d.total_pop, d.median_income, d.poverty_rate, d.no_vehicle_rate, d.assistance_rate
-  FROM a4i_econ.business_tract bt
-  JOIN a4i_econ.tract_demographics d ON d.geo_id = bt.tract
-  WHERE bt.business_id = @business_id
+  SELECT tract, acs_tracts, match_method, total_pop, median_income, poverty_rate, no_vehicle_rate, assistance_rate
+  FROM a4i_econ.business_need
+  WHERE business_id = @business_id
 ---
 # Needs a4i_econ.applicants (P2, sql/03_applicants.sql).
 kind: tool

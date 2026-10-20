@@ -98,6 +98,8 @@ def rank_applicants(budget: int = 50000, assumption: str = "base",
             queue = [a for a in queue if a["business_id"] in wanted]
         if not queue:
             return {"status": "error", "error_message": "No applicants found (check the applicants table or the ids)."}
+        # One batched graph query for all applicants + concurrent lookups, instead of ~2 queries each.
+        data.warm([a["business_id"] for a in queue], DEFAULT_HOPS)
         ranking = _score_applicants(queue)
         variants = {
             "weakest_link_weighting": _score_applicants(queue, weighting="weakest_link"),

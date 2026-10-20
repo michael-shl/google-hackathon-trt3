@@ -7,6 +7,8 @@ Results are cached per process; the corridor does not change during a session.
 import json
 import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 from . import mock_data
@@ -48,9 +50,11 @@ def _run(sql: str, **params) -> list[dict]:
 
 
 def clear_cache() -> None:
-    for fn in (get_businesses_all, cascade_paths, applicants, out_degrees, neighborhoods_all,
+    for fn in (get_businesses_all, applicants, out_degrees, neighborhoods_all,
                corridor_profile, loans_all):
         fn.cache_clear()
+    with _cascade_lock:
+        _cascade_cache.clear()
 
 
 # ---------------------------------------------------------------- businesses
@@ -72,15 +76,20 @@ def get_business(business_id: str) -> dict | None:
 
 _CASCADE_GQL = """
 GRAPH {graph}
-MATCH p = (seed:Business WHERE seed.business_id = @seed_id)
+MATCH p = (seed:Business WHERE seed.business_id IN UNNEST(@seed_ids))
           -[e:Supplies]->{{1,{max_hops}}}(exposed:Business)
 WHERE exposed.business_id != seed.business_id
 LET hops = ARRAY_LENGTH(e),
     path_strength = EXP(SUM(LN(e.intensity))),
     weakest_link = MIN(e.intensity)
-RETURN exposed.business_id AS business_id, exposed.name AS name, exposed.naics4 AS naics4,
+RETURN seed.business_id AS seed_id,
+       exposed.business_id AS business_id, exposed.name AS name, exposed.naics4 AS naics4,
        hops, path_strength, weakest_link, TO_JSON(p) AS path_json
 """
+
+# seed_id -> (depth fetched, rows). A deeper fetch also answers every shallower question.
+_cascade_cache: dict[str, tuple[int, tuple]] = {}
+_cascade_lock = threading.Lock()
 
 
 def _names_from_path_json(path_json) -> list[str]:
@@ -138,17 +147,42 @@ def _mock_paths(seed_id: str, max_hops: int) -> list[dict]:
     return rows
 
 
-@lru_cache(maxsize=256)
-def cascade_paths(seed_id: str, max_hops: int = 2) -> tuple:
-    """Every Supplies path from seed_id of 1..max_hops edges (one row per path)."""
+def prefetch_cascades(seed_ids, max_hops: int = 2) -> None:
+    """Fetches every missing seed's paths in ONE multi-hop GQL query (not one query per seed)."""
     if not 1 <= max_hops <= MAX_HOPS_LIMIT:
         raise ValueError(f"max_hops must be between 1 and {MAX_HOPS_LIMIT}")
+    with _cascade_lock:
+        missing = sorted({s for s in seed_ids if _cascade_cache.get(s, (0, ()))[0] < max_hops})
+    if not missing:
+        return
     if use_mock():
-        return tuple(_mock_paths(seed_id, max_hops))
-    rows = _run(_CASCADE_GQL.format(graph=_graph(), max_hops=int(max_hops)), seed_id=seed_id)
-    for row in rows:
-        row["path_names"] = _names_from_path_json(row.pop("path_json", None))
-    return tuple(rows)
+        fetched = {s: tuple(_mock_paths(s, max_hops)) for s in missing}
+    else:
+        rows = _run(_CASCADE_GQL.format(graph=_graph(), max_hops=int(max_hops)), seed_ids=missing)
+        grouped: dict[str, list] = {s: [] for s in missing}
+        for row in rows:
+            row["path_names"] = _names_from_path_json(row.pop("path_json", None))
+            grouped.setdefault(row.pop("seed_id"), []).append(row)
+        fetched = {s: tuple(r) for s, r in grouped.items()}
+    with _cascade_lock:
+        for seed, rows in fetched.items():
+            _cascade_cache[seed] = (max_hops, rows)
+
+
+def cascade_paths(seed_id: str, max_hops: int = 2) -> tuple:
+    """Every Supplies path from seed_id of 1..max_hops edges (one row per path)."""
+    prefetch_cascades([seed_id], max_hops)
+    _, rows = _cascade_cache[seed_id]
+    return tuple(r for r in rows if r["hops"] <= max_hops)
+
+
+def warm(seed_ids, max_hops: int = 2) -> None:
+    """Runs the independent first-time lookups concurrently (cascades, degrees, tracts, businesses)."""
+    jobs = [lambda: prefetch_cascades(seed_ids, max_hops), out_degrees, _safe_neighborhoods,
+            get_businesses_all]
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        for future in [pool.submit(job) for job in jobs]:
+            future.result()
 
 
 @lru_cache(maxsize=1)
@@ -190,14 +224,12 @@ def loans_all() -> tuple:
 
 @lru_cache(maxsize=1)
 def neighborhoods_all() -> dict:
-    """business_id -> tract demographics. Needs a4i_econ.business_tract (sql/02)."""
+    """business_id -> neighborhood need (ACS). Needs a4i_econ.business_need (sql/02_business_need.sql)."""
     if use_mock():
         return {b: dict(mock_data.TRACTS[t], tract=t) for b, t in mock_data.BUSINESS_TRACT.items()}
     rows = _run(
-        f"SELECT bt.business_id, bt.tract, d.total_pop, d.median_income, d.poverty_rate, "
-        f"d.no_vehicle_rate, d.assistance_rate "
-        f"FROM {_dataset()}.business_tract bt "
-        f"JOIN {_dataset()}.tract_demographics d ON d.geo_id = bt.tract")
+        f"SELECT business_id, tract, acs_tracts, match_method, total_pop, median_income, "
+        f"poverty_rate, no_vehicle_rate, assistance_rate FROM {_dataset()}.business_need")
     return {r.pop("business_id"): r for r in rows}
 
 
