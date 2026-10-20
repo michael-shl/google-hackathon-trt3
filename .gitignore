@@ -27,3 +27,7 @@ data/*.csv.gz
 data/*.csv
 !data/bea_direct_requirements.csv
 !data/bea_naics_concordance.csv
+
+# ADK local dev sessions/artifacts
+.adk/
+.pytest_cache/
